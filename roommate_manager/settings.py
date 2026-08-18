@@ -2,16 +2,25 @@ import os
 from pathlib import Path
 from datetime import timedelta
 import dj_database_url
+from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Load environment variables from .env file if present
+load_dotenv(BASE_DIR / '.env')
 
 # Quick-start development settings - unsuitable for production
 SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-roommate-expense-manager-super-secret-key-2026')
 
 DEBUG = os.environ.get('DEBUG', 'True').lower() in ('true', '1', 'yes')
 
-ALLOWED_HOSTS = ['*']
+# Allowed Hosts from environment (comma-separated or single entry)
+allowed_hosts_env = os.environ.get('ALLOWED_HOSTS', '*')
+if allowed_hosts_env == '*':
+    ALLOWED_HOSTS = ['*']
+else:
+    ALLOWED_HOSTS = [h.strip() for h in allowed_hosts_env.split(',') if h.strip()]
 
 # Application definition
 INSTALLED_APPS = [
@@ -45,6 +54,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
+# CSRF Trusted Origins
 CSRF_TRUSTED_ORIGINS = [
     'https://*.loca.lt',
     'https://*.onrender.com',
@@ -53,6 +63,12 @@ CSRF_TRUSTED_ORIGINS = [
     'http://localhost:8000',
     'http://127.0.0.1:8000',
 ]
+csrf_env = os.environ.get('CSRF_TRUSTED_ORIGINS')
+if csrf_env:
+    for origin in csrf_env.split(','):
+        cleaned = origin.strip()
+        if cleaned and cleaned not in CSRF_TRUSTED_ORIGINS:
+            CSRF_TRUSTED_ORIGINS.append(cleaned)
 
 ROOT_URLCONF = 'roommate_manager.urls'
 
@@ -156,14 +172,18 @@ SIMPLE_JWT = {
 }
 
 # CORS Configuration
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_ALL_ORIGINS = os.environ.get('CORS_ALLOW_ALL_ORIGINS', 'True').lower() in ('true', '1', 'yes')
+cors_origins_env = os.environ.get('CORS_ALLOWED_ORIGINS')
+if cors_origins_env:
+    CORS_ALLOWED_ORIGINS = [o.strip() for o in cors_origins_env.split(',') if o.strip()]
 CORS_ALLOW_CREDENTIALS = True
 
 # Internationalization
-LANGUAGE_CODE = 'en-us'
-TIME_ZONE = 'Asia/Kolkata'
+LANGUAGE_CODE = os.environ.get('LANGUAGE_CODE', 'en-us')
+TIME_ZONE = os.environ.get('TIME_ZONE', 'Asia/Kolkata')
 USE_I18N = True
 USE_TZ = True
+
 
 # Static files (CSS, JavaScript, Images)
 STATIC_URL = '/static/'
