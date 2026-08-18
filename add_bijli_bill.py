@@ -66,3 +66,4 @@ print("\nSimplified Debts (Who Owes Whom):")
 for d in bal['simplified_debts']:
     print(f"  - {d['from_user']['display_name']} owes {d['to_user']['display_name']}: Rs {d['amount']:.2f}")
 print("=" * 50)
+ 
