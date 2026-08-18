@@ -1,0 +1,209 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard - Roommate Expense Manager{% endblock %}
+
+{% block content %}
+<div id="dashboardRoot">
+    <!-- Pending Payment Verifications Banner -->
+    <div id="pendingVerificationsAlertContainer"></div>
+
+    <!-- Top Stat Cards Row -->
+    <div class="row g-3 mb-4">
+        <!-- 1. Total Room Spending -->
+        <div class="col-sm-6 col-xl-3">
+            <div class="stat-card">
+                <div>
+                    <div class="stat-title">Room Total Expenses</div>
+                    <div class="stat-value" id="statTotalRoomExpenses">₹0.00</div>
+                    <div class="stat-subtext">All time group spending</div>
+                </div>
+                <div class="stat-icon-wrapper stat-icon-primary">
+                    <i class="bi bi-wallet2"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. You Paid -->
+        <div class="col-sm-6 col-xl-3">
+            <div class="stat-card">
+                <div>
+                    <div class="stat-title">You Paid Directly</div>
+                    <div class="stat-value text-primary" id="statMyPaid">₹0.00</div>
+                    <div class="stat-subtext">Total out-of-pocket payments</div>
+                </div>
+                <div class="stat-icon-wrapper stat-icon-primary">
+                    <i class="bi bi-credit-card"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Your Share -->
+        <div class="col-sm-6 col-xl-3">
+            <div class="stat-card">
+                <div>
+                    <div class="stat-title">Your Total Share</div>
+                    <div class="stat-value text-secondary" id="statMyShare">₹0.00</div>
+                    <div class="stat-subtext">Your allocated cost</div>
+                </div>
+                <div class="stat-icon-wrapper stat-icon-warning">
+                    <i class="bi bi-pie-chart-fill"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. Net Balance Status -->
+        <div class="col-sm-6 col-xl-3">
+            <div class="stat-card" id="statNetBalanceCard">
+                <div>
+                    <div class="stat-title">Your Net Balance</div>
+                    <div class="stat-value text-success" id="statNetBalanceValue">₹0.00</div>
+                    <div class="stat-subtext" id="statNetBalanceSubtext">All settled up</div>
+                </div>
+                <div class="stat-icon-wrapper stat-icon-success">
+                    <i class="bi bi-arrow-left-right"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Section: Debt Simplification & Visual Charts -->
+    <div class="row g-4 mb-4">
+        <!-- Who Owes Whom (Simplified Debts) -->
+        <div class="col-lg-6">
+            <div class="card card-custom h-100">
+                <div class="card-header-clean">
+                    <div>
+                        <h5 class="fw-bold mb-0"><i class="bi bi-arrow-left-right text-primary me-2"></i>Who Owes Whom</h5>
+                        <small class="text-muted">Optimized minimum-transaction settlement paths</small>
+                    </div>
+                    <button class="btn btn-sm btn-outline-success" onclick="openSettleModal()">
+                        <i class="bi bi-cash-stack me-1"></i> Settle Up
+                    </button>
+                </div>
+                <div class="card-body" id="simplifiedDebtsContainer">
+                    <div class="text-center py-4 text-muted">
+                        <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                        <span class="ms-2">Calculating balances...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Category Spend Breakdown Chart -->
+        <div class="col-lg-6">
+            <div class="card card-custom h-100">
+                <div class="card-header-clean">
+                    <div>
+                        <h5 class="fw-bold mb-0"><i class="bi bi-pie-chart-fill text-primary me-2"></i>Category Breakdown</h5>
+                        <small class="text-muted">Distribution of expenses by category</small>
+                    </div>
+                </div>
+                <div class="card-body d-flex align-items-center justify-content-center" style="min-height: 280px; position: relative;">
+                    <canvas id="categoryDoughnutChart" style="max-height: 260px;"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Row 2: Monthly Trends & Member Spending -->
+    <div class="row g-4 mb-4">
+        <!-- Monthly Spending Trend -->
+        <div class="col-lg-6">
+            <div class="card card-custom h-100">
+                <div class="card-header-clean">
+                    <h5 class="fw-bold mb-0"><i class="bi bi-bar-chart-line-fill text-primary me-2"></i>Monthly Spending Trend</h5>
+                </div>
+                <div class="card-body" style="height: 280px; position: relative;">
+                    <canvas id="monthlyBarChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Member Spending Comparison -->
+        <div class="col-lg-6">
+            <div class="card card-custom h-100">
+                <div class="card-header-clean">
+                    <h5 class="fw-bold mb-0"><i class="bi bi-people-fill text-primary me-2"></i>Paid vs Consumed Share</h5>
+                </div>
+                <div class="card-body" style="height: 280px; position: relative;">
+                    <canvas id="memberSpendingChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Expenses Table -->
+    <div class="card card-custom mb-4">
+        <div class="card-header-clean">
+            <div>
+                <h5 class="fw-bold mb-0"><i class="bi bi-clock-history text-primary me-2"></i>Recent Expenses</h5>
+                <small class="text-muted">Latest transactions added in this room</small>
+            </div>
+            <a href="/expenses/" class="btn btn-sm btn-outline-custom">
+                View All Expenses <i class="bi bi-chevron-right ms-1"></i>
+            </a>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-custom align-middle">
+                <thead>
+                    <tr>
+                        <th>Expense</th>
+                        <th>Category</th>
+                        <th>Paid By</th>
+                        <th class="text-end">Amount</th>
+                        <th class="text-center">Splits</th>
+                        <th class="text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="recentExpensesTableBody">
+                    <tr>
+                        <td colspan="6" class="text-center py-4">
+                            <div class="spinner-border spinner-border-sm text-primary"></div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for Viewing Expense Splits -->
+<div class="modal fade" id="viewSplitsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold" id="viewExpenseTitle">Expense Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="bg-light p-3 rounded mb-3">
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="text-muted small">Total Expense:</span>
+                        <strong class="fs-5 text-dark" id="viewExpenseTotal">$0.00</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="text-muted small">Paid By:</span>
+                        <span class="fw-semibold text-dark" id="viewExpensePaidBy"></span>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span class="text-muted small">Date:</span>
+                        <span class="text-muted small" id="viewExpenseDate"></span>
+                    </div>
+                </div>
+
+                <h6 class="fw-bold mb-2">Participant Split Breakdown</h6>
+                <div id="viewExpenseSplitsList">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="/static/js/dashboard.js?v=2.0"></script>
+{% endblock %}

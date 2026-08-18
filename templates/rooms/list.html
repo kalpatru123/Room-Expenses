@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+
+{% block title %}My Rooms - Roommate Expense Manager{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+        <h3 class="fw-bold mb-1">Your Rooms</h3>
+        <p class="text-muted small mb-0">View all apartment spaces you are a member of</p>
+    </div>
+    <a href="/rooms/create-join/" class="btn btn-primary-custom">
+        <i class="bi bi-plus-lg me-1"></i> Create or Join Room
+    </a>
+</div>
+
+<div class="row" id="roomsListContainer">
+    <div class="col-12 text-center py-5">
+        <div class="spinner-border text-primary" role="status"></div>
+        <p class="text-muted mt-2">Loading your rooms...</p>
+    </div>
+</div>
+{% endblock %}

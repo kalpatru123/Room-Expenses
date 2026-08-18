@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+
+{% block title %}Create Account - Roommate Expense Manager{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center align-items-center" style="min-height: 75vh;">
+    <div class="col-md-7 col-lg-5">
+        <div class="card card-custom p-4 shadow-md">
+            <div class="text-center mb-4">
+                <div class="d-inline-flex p-3 rounded-circle bg-primary-subtle text-primary mb-3">
+                    <i class="bi bi-person-plus-fill fs-2"></i>
+                </div>
+                <h3 class="fw-bold">Create an Account</h3>
+                <p class="text-muted small">Split bills seamlessly with your apartment roommates</p>
+            </div>
+
+            <div id="registerAlert" class="alert alert-danger d-none py-2 small" role="alert"></div>
+
+            <form id="registerForm">
+                <div class="row g-2 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">First Name</label>
+                        <input type="text" class="form-control" id="regFirstName" placeholder="Alice" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Last Name</label>
+                        <input type="text" class="form-control" id="regLastName" placeholder="Johnson">
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Username <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="regUsername" placeholder="e.g. alicejohnson" required>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Email Address <span class="text-danger">*</span></label>
+                    <input type="email" class="form-control" id="regEmail" placeholder="alice@example.com" required>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Phone Number (Optional)</label>
+                    <input type="tel" class="form-control" id="regPhone" placeholder="+91 98765 43210">
+                </div>
+
+                <div class="row g-2 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Password <span class="text-danger">*</span></label>
+                        <input type="password" class="form-control" id="regPassword" placeholder="Min 6 characters" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Confirm Password <span class="text-danger">*</span></label>
+                        <input type="password" class="form-control" id="regPasswordConfirm" placeholder="Re-enter password" required>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary-custom w-100 py-2 mt-2">
+                    <i class="bi bi-person-check me-1"></i> Register & Get Started
+                </button>
+            </form>
+
+            <div class="mt-4 pt-3 border-top text-center small text-muted">
+                Already have an account? <a href="/login/" class="text-primary fw-semibold text-decoration-none">Sign in</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

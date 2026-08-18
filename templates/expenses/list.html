@@ -1,0 +1,99 @@
+{% extends 'base.html' %}
+
+{% block title %}Expenses - Roommate Expense Manager{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 mb-4">
+    <div>
+        <h3 class="fw-bold mb-1" id="expenseRoomTitle">Expenses</h3>
+        <p class="text-muted small mb-0">Track, filter, and inspect shared apartment expenses</p>
+    </div>
+    <div>
+        <button class="btn btn-primary-custom" data-bs-toggle="modal" data-bs-target="#addExpenseModal">
+            <i class="bi bi-plus-lg me-1"></i> Add New Expense
+        </button>
+    </div>
+</div>
+
+<!-- Filters Card -->
+<div class="card card-custom p-3 mb-4 shadow-sm">
+    <div class="row g-2 align-items-center">
+        <div class="col-md-4">
+            <div class="input-group input-group-sm">
+                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                <input type="text" class="form-control" id="searchExpenseInput" placeholder="Search by title or notes..." oninput="filterExpenses()">
+            </div>
+        </div>
+        <div class="col-md-4">
+            <select class="form-select form-select-sm" id="filterCategory" onchange="filterExpenses()">
+                <option value="">All Categories</option>
+            </select>
+        </div>
+        <div class="col-md-4">
+            <select class="form-select form-select-sm" id="filterPaidBy" onchange="filterExpenses()">
+                <option value="">All Payers</option>
+            </select>
+        </div>
+    </div>
+</div>
+
+<!-- Expenses Table Card -->
+<div class="card card-custom shadow-sm mb-4">
+    <div class="table-responsive">
+        <table class="table table-custom align-middle">
+            <thead>
+                <tr>
+                    <th>Expense Title</th>
+                    <th>Category</th>
+                    <th>Paid By</th>
+                    <th>Date</th>
+                    <th class="text-end">Total Amount</th>
+                    <th class="text-end">Your Share</th>
+                    <th class="text-center">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="expensesTableBody">
+                <tr>
+                    <td colspan="7" class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status"></div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal for Viewing Expense Splits -->
+<div class="modal fade" id="viewSplitsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold" id="viewExpenseTitle">Expense Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="bg-light p-3 rounded mb-3">
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="text-muted small">Total Expense:</span>
+                        <strong class="fs-5 text-dark" id="viewExpenseTotal">$0.00</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="text-muted small">Paid By:</span>
+                        <span class="fw-semibold text-dark" id="viewExpensePaidBy"></span>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span class="text-muted small">Date:</span>
+                        <span class="text-muted small" id="viewExpenseDate"></span>
+                    </div>
+                </div>
+
+                <h6 class="fw-bold mb-2">Participant Split Breakdown</h6>
+                <div id="viewExpenseSplitsList"></div>
+            </div>
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

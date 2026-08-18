@@ -1,0 +1,87 @@
+{% extends 'base.html' %}
+
+{% block title %}Room Details - Roommate Expense Manager{% endblock %}
+
+{% block content %}
+<div id="roomDetailContainer" data-room-id="{{ room_id }}">
+    <!-- Room Header Banner -->
+    <div class="card card-custom p-4 mb-4 shadow-sm">
+        <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
+            <div>
+                <div class="d-flex align-items-center gap-2 mb-1">
+                    <h2 class="fw-bold mb-0 text-dark" id="roomNameHeading">Loading Room...</h2>
+                </div>
+                <p class="text-muted mb-0" id="roomDescText"></p>
+            </div>
+
+            <!-- Invite Code Badge & Action -->
+            <div class="d-flex align-items-center gap-2">
+                <div class="bg-light border px-3 py-2 rounded text-center">
+                    <div class="text-muted small text-uppercase fw-semibold" style="font-size: 0.7rem;">Room Invite Code</div>
+                    <span class="fs-5 font-monospace fw-bold text-primary" id="roomInviteCodeBadge">--------</span>
+                </div>
+                <button class="btn btn-outline-custom" onclick="copyInviteCode(document.getElementById('roomInviteCodeBadge').textContent)">
+                    <i class="bi bi-clipboard"></i> Copy
+                </button>
+                <div id="adminActions" class="d-none">
+                    <button class="btn btn-outline-secondary" onclick="regenerateInvite({{ room_id }})" title="Regenerate Code">
+                        <i class="bi bi-arrow-clockwise"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Room Content Grid -->
+    <div class="row g-4 mb-4">
+        <!-- Members List -->
+        <div class="col-lg-5">
+            <div class="card card-custom h-100">
+                <div class="card-header-clean">
+                    <h5 class="fw-bold mb-0"><i class="bi bi-people-fill text-primary me-2"></i>Roommates</h5>
+                    <span class="badge bg-primary-subtle text-primary" id="membersCountBadge"></span>
+                </div>
+                <div class="card-body">
+                    <div id="membersList">
+                        <div class="text-center py-4">
+                            <div class="spinner-border spinner-border-sm text-primary"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Room Member Balances Table -->
+        <div class="col-lg-7">
+            <div class="card card-custom h-100">
+                <div class="card-header-clean">
+                    <h5 class="fw-bold mb-0"><i class="bi bi-cash-coin text-primary me-2"></i>Member Balances</h5>
+                    <button class="btn btn-sm btn-outline-success" onclick="openSettleModal()">
+                        <i class="bi bi-wallet2 me-1"></i> Settle Up
+                    </button>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-custom align-middle">
+                        <thead>
+                            <tr>
+                                <th>Roommate</th>
+                                <th class="text-end">Paid</th>
+                                <th class="text-end">Share</th>
+                                <th class="text-end">Net Balance</th>
+                                <th class="text-center">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="roomBalancesTableBody">
+                            <tr>
+                                <td colspan="5" class="text-center py-4">
+                                    <div class="spinner-border spinner-border-sm text-primary"></div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

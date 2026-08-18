@@ -1,0 +1,94 @@
+{% extends 'base.html' %}
+
+{% block title %}Create or Join Room - Roommate Expense Manager{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-10">
+        <div class="text-center mb-4">
+            <h3 class="fw-bold">Room Management</h3>
+            <p class="text-muted">Set up a new apartment room or join your existing roommates</p>
+        </div>
+
+        <div class="row g-4">
+            <!-- Option 1: Create New Room -->
+            <div class="col-md-6">
+                <div class="card card-custom p-4 h-100 shadow-sm border-top border-primary border-3">
+                    <div class="d-flex align-items-center gap-3 mb-3">
+                        <div class="stat-icon-wrapper stat-icon-primary">
+                            <i class="bi bi-plus-circle-fill"></i>
+                        </div>
+                        <div>
+                            <h4 class="fw-bold mb-0">Create New Room</h4>
+                            <small class="text-muted">Start a space for your apartment</small>
+                        </div>
+                    </div>
+
+                    <form id="createRoomForm">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Room Name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="roomName" placeholder="e.g. Apartment 402, Sunset Villa" required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Description (Optional)</label>
+                            <textarea class="form-control" id="roomDescription" rows="2" placeholder="e.g. Shared 3-bedroom apartment on Oak Street"></textarea>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold">Currency Symbol</label>
+                            <select class="form-select" id="roomCurrency">
+                                <option value="₹" selected>₹ INR / Indian Rupee</option>
+                                <option value="$">$ USD / US Dollar</option>
+                                <option value="€">€ EUR / Euro</option>
+                                <option value="£">£ GBP / British Pound</option>
+                                <option value="AED">AED / UAE Dirham</option>
+                                <option value="C$">C$ CAD / Canadian Dollar</option>
+                                <option value="A$">A$ AUD / Australian Dollar</option>
+                            </select>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary-custom w-100 py-2">
+                            <i class="bi bi-house-add me-1"></i> Create Room & Become Admin
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Option 2: Join with Invite Code -->
+            <div class="col-md-6">
+                <div class="card card-custom p-4 h-100 shadow-sm border-top border-success border-3">
+                    <div class="d-flex align-items-center gap-3 mb-3">
+                        <div class="stat-icon-wrapper stat-icon-success">
+                            <i class="bi bi-door-open-fill"></i>
+                        </div>
+                        <div>
+                            <h4 class="fw-bold mb-0">Join With Invite Code</h4>
+                            <small class="text-muted">Enter the code shared by your roommate</small>
+                        </div>
+                    </div>
+
+                    <form id="joinRoomForm">
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold">8-Character Invite Code <span class="text-danger">*</span></label>
+                            <div class="input-group input-group-lg">
+                                <span class="input-group-text"><i class="bi bi-key-fill text-muted"></i></span>
+                                <input type="text" class="form-control text-uppercase font-monospace fw-bold" id="inviteCode" placeholder="e.g. APT402RM" maxlength="12" required>
+                            </div>
+                            <small class="text-muted mt-1 d-block">Ask your room admin for their room invite code.</small>
+                        </div>
+
+                        <div class="alert alert-light border small text-muted mb-4">
+                            <i class="bi bi-shield-check text-success me-1"></i> Joining connects you to the shared expense pool and balance calculations instantly.
+                        </div>
+
+                        <button type="submit" class="btn btn-success w-100 py-2 text-white fw-bold">
+                            <i class="bi bi-box-arrow-in-right me-1"></i> Join Room Now
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
