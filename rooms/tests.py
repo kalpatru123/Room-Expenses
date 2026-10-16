@@ -68,6 +68,66 @@ class RoomsAPITests(TestCase):
         self.assertEqual(data['total_room_expenses'], 90.00)
         self.assertEqual(len(data['simplified_debts']), 2)
 
-        # Total debt transfers must equal $60 ($30 each from Bob and Charlie to Alice)
         total_transfer = sum(d['amount'] for d in data['simplified_debts'])
         self.assertEqual(total_transfer, 60.00)
+
+    def test_monthly_room_balances_and_isolation(self):
+        import datetime
+        from decimal import Decimal
+        from expenses.models import Expense, ExpenseSplit
+        from rooms.services import calculate_room_balances, get_room_analytics
+
+        room = Room.objects.create(name='Monthly Test Room', created_by=self.user1)
+        RoomMember.objects.create(room=room, user=self.user1, role='ADMIN')
+        RoomMember.objects.create(room=room, user=self.user2, role='MEMBER')
+
+        # September Expense: $100
+        exp_sep = Expense.objects.create(
+            room=room, title='September Bijli Bill',
+            amount=Decimal('100.00'), paid_by=self.user1,
+            split_type='EQUAL', date=datetime.date(2026, 9, 15)
+        )
+        ExpenseSplit.objects.create(expense=exp_sep, user=self.user1, amount=Decimal('50.00'))
+        ExpenseSplit.objects.create(expense=exp_sep, user=self.user2, amount=Decimal('50.00'))
+
+        # October Expense: $250
+        exp_oct = Expense.objects.create(
+            room=room, title='October Groceries',
+            amount=Decimal('250.00'), paid_by=self.user1,
+            split_type='EQUAL', date=datetime.date(2026, 10, 10)
+        )
+        ExpenseSplit.objects.create(expense=exp_oct, user=self.user1, amount=Decimal('125.00'))
+        ExpenseSplit.objects.create(expense=exp_oct, user=self.user2, amount=Decimal('125.00'))
+
+        # 1. September balances
+        bal_sep = calculate_room_balances(room, year=2026, month=9)
+        self.assertEqual(bal_sep['total_room_expenses'], 100.00)
+        self.assertEqual(bal_sep['total_expenses_count'], 1)
+
+        # 2. October balances
+        bal_oct = calculate_room_balances(room, year=2026, month=10)
+        self.assertEqual(bal_oct['total_room_expenses'], 250.00)
+        self.assertEqual(bal_oct['total_expenses_count'], 1)
+
+        # 3. All time balances
+        bal_all = calculate_room_balances(room)
+        self.assertEqual(bal_all['total_room_expenses'], 350.00)
+        self.assertEqual(bal_all['total_expenses_count'], 2)
+
+        # 4. Month-over-month difference analytics
+        analytics = get_room_analytics(room)
+        comparison = analytics['monthly_comparison']
+        self.assertTrue(len(comparison) >= 2)
+
+        sep_info = next(m for m in comparison if m['key'] == '2026-09')
+        oct_info = next(m for m in comparison if m['key'] == '2026-10')
+
+        self.assertEqual(sep_info['total_spent'], 100.00)
+        self.assertTrue(sep_info['is_completed'])  # Past 30 Sep 2026
+
+        self.assertEqual(oct_info['total_spent'], 250.00)
+        # October diff vs September = +150 (+150.0%)
+        self.assertEqual(oct_info['diff_amount'], 150.00)
+        self.assertEqual(oct_info['diff_percentage'], 150.0)
+        self.assertEqual(oct_info['diff_direction'], 'increased')
+

@@ -41,15 +41,17 @@ class ExpenseSerializer(serializers.ModelSerializer):
     splits = ExpenseSplitSerializer(many=True, read_only=True)
     room_name = serializers.CharField(source='room.name', read_only=True)
     currency = serializers.CharField(source='room.currency', read_only=True)
+    date = serializers.DateField(format='%d/%m/%Y', input_formats=['%d/%m/%Y', '%d-%m-%Y', '%Y-%m-%d', 'iso-8601'])
+    raw_date = serializers.DateField(source='date', format='%Y-%m-%d', read_only=True)
 
     class Meta:
         model = Expense
         fields = (
             'id', 'room', 'room_name', 'currency', 'title', 'amount',
             'category', 'category_details', 'paid_by', 'paid_by_details',
-            'split_type', 'date', 'notes', 'splits', 'created_at', 'updated_at'
+            'split_type', 'date', 'raw_date', 'notes', 'splits', 'created_at', 'updated_at'
         )
-        read_only_fields = ('id', 'created_at', 'updated_at')
+        read_only_fields = ('id', 'created_at', 'updated_at', 'raw_date')
 
 
 class ParticipantSplitInputSerializer(serializers.Serializer):
@@ -60,6 +62,11 @@ class ParticipantSplitInputSerializer(serializers.Serializer):
 
 class ExpenseCreateUpdateSerializer(serializers.ModelSerializer):
     splits_data = ParticipantSplitInputSerializer(many=True, required=True, write_only=True)
+    date = serializers.DateField(
+        required=False,
+        format='%d/%m/%Y',
+        input_formats=['%d/%m/%Y', '%d-%m-%Y', '%Y-%m-%d', 'iso-8601']
+    )
 
     class Meta:
         model = Expense

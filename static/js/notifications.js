@@ -127,7 +127,7 @@ function showVerificationPopup(settlement, currency) {
             </div>
             <div class="d-flex justify-content-between">
                 <span class="text-muted">Recorded Date:</span>
-                <span class="fw-semibold text-dark">${new Date(settlement.created_at).toLocaleString()}</span>
+                <span class="fw-semibold text-dark">${formatIndianDateTime(settlement.created_at)}</span>
             </div>
         </div>
 

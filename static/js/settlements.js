@@ -156,7 +156,7 @@ function renderSettlementsTable(settlements, currency) {
             actionHtml = `
                 <div class="d-flex justify-content-center align-items-center gap-2">
                     <small class="text-success fw-semibold">
-                        <i class="bi bi-check2-all"></i> ${s.completed_at ? new Date(s.completed_at).toLocaleDateString() : 'Completed'}
+                        <i class="bi bi-check2-all"></i> ${s.completed_at ? formatIndianDate(s.completed_at) : 'Completed'}
                     </small>
                     ${editButton}
                 </div>
@@ -200,7 +200,7 @@ function renderSettlementsTable(settlements, currency) {
                 </td>
                 <td>
                     <div class="small text-dark">${s.notes || '<span class="text-muted fst-italic">Direct payment</span>'}</div>
-                    <small class="text-muted">${new Date(s.created_at).toLocaleDateString()}</small>
+                    <small class="text-muted">${formatIndianDate(s.created_at)}</small>
                 </td>
                 <td>${statusBadgeHtml}</td>
                 <td class="text-center">${actionHtml}</td>
@@ -585,7 +585,7 @@ async function viewSettlementHistoryModal(settlementId) {
                                     <span class="badge bg-secondary-subtle text-secondary ms-1 small">Room Creator / Admin</span>
                                 </div>
                             </div>
-                            <small class="text-muted">${new Date(h.edited_at).toLocaleString()}</small>
+                            <small class="text-muted">${formatIndianDateTime(h.edited_at)}</small>
                         </div>
 
                         <div class="row g-2 small mt-2">

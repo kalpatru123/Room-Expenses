@@ -5,7 +5,35 @@
 let roomMembersCache = [];
 let categoriesCache = [];
 
+function initFlatpickrDatePickers() {
+    if (typeof flatpickr !== 'undefined') {
+        const expenseDateInput = document.getElementById('expenseDate');
+        if (expenseDateInput && !expenseDateInput._flatpickr) {
+            flatpickr(expenseDateInput, {
+                dateFormat: 'd/m/Y',
+                allowInput: true,
+                defaultDate: new Date()
+            });
+        }
+        const editDateInput = document.getElementById('editExpenseDate');
+        if (editDateInput && !editDateInput._flatpickr) {
+            flatpickr(editDateInput, {
+                dateFormat: 'd/m/Y',
+                allowInput: true,
+                defaultDate: new Date()
+            });
+        }
+    } else {
+        const expenseDateInput = document.getElementById('expenseDate');
+        if (expenseDateInput && !expenseDateInput.value) {
+            expenseDateInput.value = getTodayIndianDate();
+        }
+    }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
+    initFlatpickrDatePickers();
+
     if (!Auth.isAuthenticated()) return;
 
     // Prefetch modal data in the background on page load
@@ -27,6 +55,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
+let availableMonthsCache = [];
+
 async function loadExpensesPage() {
     const activeRoom = Auth.getActiveRoom();
     if (!activeRoom) {
@@ -40,22 +70,24 @@ async function loadExpensesPage() {
     if (titleEl) titleEl.textContent = `Expenses in ${activeRoom.name}`;
 
     try {
-        const [categories, members] = await Promise.all([
+        const [categories, members, balancesData] = await Promise.all([
             apiRequest(`/api/categories/?room=${activeRoom.id}`),
-            apiRequest(`/api/rooms/${activeRoom.id}/members/`)
+            apiRequest(`/api/rooms/${activeRoom.id}/members/`),
+            apiRequest(`/api/rooms/${activeRoom.id}/balances/`)
         ]);
 
         categoriesCache = categories;
         roomMembersCache = members;
+        availableMonthsCache = balancesData?.available_months || [];
 
-        populateFilterDropdowns(categories, members);
+        populateFilterDropdowns(categories, members, availableMonthsCache);
         await filterExpenses();
     } catch (e) {
         showToast(e.message, 'error');
     }
 }
 
-function populateFilterDropdowns(categories, members) {
+function populateFilterDropdowns(categories, members, availableMonths = []) {
     const catSelect = document.getElementById('filterCategory');
     if (catSelect) {
         catSelect.innerHTML = `<option value="">All Categories</option>` +
@@ -66,6 +98,25 @@ function populateFilterDropdowns(categories, members) {
     if (payerSelect) {
         payerSelect.innerHTML = `<option value="">All Payers</option>` +
             members.map(m => `<option value="${m.user.id}">${m.user.display_name}</option>`).join('');
+    }
+
+    const monthSelect = document.getElementById('filterMonth');
+    if (monthSelect && availableMonths) {
+        const currentVal = monthSelect.value;
+        monthSelect.innerHTML = `<option value="">All Months</option>` +
+            availableMonths.map(m => `
+                <option value="${m.key}" ${currentVal === m.key ? 'selected' : ''}>
+                    ${m.label} ${m.is_current ? '(Current)' : (m.is_completed ? '(Completed)' : '')}
+                </option>
+            `).join('');
+    }
+}
+
+function clearMonthFilter() {
+    const monthSelect = document.getElementById('filterMonth');
+    if (monthSelect) {
+        monthSelect.value = '';
+        filterExpenses();
     }
 }
 
@@ -79,23 +130,125 @@ async function filterExpenses() {
     const category = document.getElementById('filterCategory')?.value || '';
     const paidBy = document.getElementById('filterPaidBy')?.value || '';
     const search = document.getElementById('searchExpenseInput')?.value || '';
+    const month = document.getElementById('filterMonth')?.value || '';
 
     let url = `/api/expenses/?room=${activeRoom.id}`;
     if (category) url += `&category=${category}`;
     if (paidBy) url += `&paid_by=${paidBy}`;
     if (search) url += `&search=${encodeURIComponent(search)}`;
+    if (month) url += `&month=${encodeURIComponent(month)}`;
 
     try {
         const expenses = await apiRequest(url);
-        renderExpensesTable(expenses, activeRoom.currency);
+        renderExpensesTable(expenses, activeRoom.currency, month);
     } catch (e) {
         showToast(e.message, 'error');
     }
 }
 
-function renderExpensesTable(expenses, currency) {
+function getExpenseMonthKey(exp) {
+    if (exp.raw_date && /^\d{4}-\d{2}/.test(exp.raw_date)) {
+        return exp.raw_date.substring(0, 7);
+    }
+    if (exp.date) {
+        if (/^\d{4}-\d{2}/.test(exp.date)) {
+            return exp.date.substring(0, 7);
+        }
+        if (/^\d{2}\/\d{2}\/\d{4}/.test(exp.date)) {
+            const parts = exp.date.split('/');
+            return `${parts[2]}-${parts[1]}`;
+        }
+    }
+    if (exp.created_at) {
+        return exp.created_at.substring(0, 7);
+    }
+    const today = new Date();
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function renderExpenseRow(exp, currency, currentUser) {
+    const isPayer = currentUser && exp.paid_by === currentUser.id;
+    const mySplit = exp.splits ? exp.splits.find(s => currentUser && s.user.id === currentUser.id) : null;
+
+    return `
+        <tr>
+            <td>
+                <div class="fw-semibold text-dark">${exp.title}</div>
+                ${exp.notes ? `<small class="text-muted text-truncate d-block" style="max-width: 200px;">${exp.notes}</small>` : ''}
+            </td>
+            <td>
+                ${exp.category_details ? `
+                    <span class="category-badge" style="background-color: ${exp.category_details.color || '#6B7280'}">
+                        <i class="bi ${exp.category_details.icon || 'bi-tag'}"></i> ${exp.category_details.name}
+                    </span>
+                ` : '<span class="badge bg-secondary">General</span>'}
+            </td>
+            <td>
+                <div class="d-flex align-items-center gap-2">
+                    <div class="user-avatar-sm" style="background-color: ${exp.paid_by_details.avatar_color || '#4F46E5'}">
+                        ${exp.paid_by_details.initials}
+                    </div>
+                    <span>${exp.paid_by_details.display_name} ${isPayer ? '<span class="badge bg-light text-dark">You</span>' : ''}</span>
+                </div>
+            </td>
+            <td class="text-muted small fw-semibold">${formatIndianDate(exp.date)}</td>
+            <td class="text-end fw-bold text-dark">${currency}${parseFloat(exp.amount).toFixed(2)}</td>
+            <td class="text-end">
+                ${mySplit ? `<span class="fw-semibold text-danger">${currency}${parseFloat(mySplit.amount).toFixed(2)}</span>` : '<span class="text-muted small">Not involved</span>'}
+            </td>
+            <td class="text-center">
+                <button class="btn btn-sm btn-outline-secondary me-1" title="View Splits" onclick="viewExpenseSplitsModal(${JSON.stringify(exp).replace(/"/g, '&quot;')})">
+                    <i class="bi bi-eye"></i>
+                </button>
+                ${isPayer ? `
+                    <button class="btn btn-sm btn-outline-primary me-1" title="Edit Expense" onclick="openEditExpenseModal(${exp.id})">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" title="Delete Expense" onclick="deleteExpense(${exp.id}, '${exp.title.replace(/'/g, "\\'")}')">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                ` : ''}
+            </td>
+        </tr>
+    `;
+}
+
+function renderExpensesTable(expenses, currency, selectedMonth = '') {
     const tbody = document.getElementById('expensesTableBody');
     if (!tbody) return;
+
+    const banner = document.getElementById('monthlySummaryBanner');
+
+    // 1. Handle Active Month Banner
+    if (selectedMonth && banner) {
+        const monthObj = availableMonthsCache.find(m => m.key === selectedMonth);
+        const totalAmt = (expenses || []).reduce((sum, e) => sum + parseFloat(e.amount || 0), 0);
+        const monthLabel = monthObj ? monthObj.label : selectedMonth;
+        const isCompleted = monthObj ? monthObj.is_completed : false;
+        const statusText = isCompleted ? `Completed Month (Ended ${monthObj?.last_day_formatted || ''})` : 'Active / Current Month';
+        const statusBadge = isCompleted ? 'bg-secondary-subtle text-secondary' : 'bg-primary-subtle text-primary';
+
+        banner.classList.remove('d-none');
+        banner.innerHTML = `
+            <div class="alert alert-info py-2 px-3 small d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2 shadow-sm mb-0">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-calendar-check-fill text-primary fs-5"></i>
+                    <div>
+                        <div>Viewing expenses for <strong>${monthLabel}</strong></div>
+                        <div class="text-muted">Total: <strong class="text-dark">${currency}${totalAmt.toFixed(2)}</strong> &bull; ${expenses.length} expense${expenses.length === 1 ? '' : 's'}</div>
+                    </div>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge ${statusBadge} border px-2 py-1">${statusText}</span>
+                    <button class="btn btn-sm btn-outline-primary py-1" onclick="clearMonthFilter()">
+                        <i class="bi bi-x-circle me-1"></i> View All Months
+                    </button>
+                </div>
+            </div>
+        `;
+    } else if (banner) {
+        banner.classList.add('d-none');
+    }
 
     if (!expenses || expenses.length === 0) {
         tbody.innerHTML = `
@@ -112,52 +265,53 @@ function renderExpensesTable(expenses, currency) {
 
     const currentUser = Auth.getUser();
 
-    tbody.innerHTML = expenses.map(exp => {
-        const isPayer = currentUser && exp.paid_by === currentUser.id;
-        const mySplit = exp.splits ? exp.splits.find(s => currentUser && s.user.id === currentUser.id) : null;
+    // 2. If viewing "All Months", visually group by month so every month's expense is distinctly separated
+    if (!selectedMonth) {
+        const groups = {};
+        expenses.forEach(exp => {
+            const mKey = getExpenseMonthKey(exp);
+            if (!groups[mKey]) groups[mKey] = [];
+            groups[mKey].push(exp);
+        });
 
-        return `
-            <tr>
-                <td>
-                    <div class="fw-semibold text-dark">${exp.title}</div>
-                    ${exp.notes ? `<small class="text-muted text-truncate d-block" style="max-width: 200px;">${exp.notes}</small>` : ''}
-                </td>
-                <td>
-                    ${exp.category_details ? `
-                        <span class="category-badge" style="background-color: ${exp.category_details.color || '#6B7280'}">
-                            <i class="bi ${exp.category_details.icon || 'bi-tag'}"></i> ${exp.category_details.name}
-                        </span>
-                    ` : '<span class="badge bg-secondary">General</span>'}
-                </td>
-                <td>
-                    <div class="d-flex align-items-center gap-2">
-                        <div class="user-avatar-sm" style="background-color: ${exp.paid_by_details.avatar_color || '#4F46E5'}">
-                            ${exp.paid_by_details.initials}
+        const sortedKeys = Object.keys(groups).sort().reverse();
+        let html = '';
+
+        sortedKeys.forEach(mKey => {
+            const groupList = groups[mKey];
+            const groupTotal = groupList.reduce((sum, e) => sum + parseFloat(e.amount || 0), 0);
+            const monthObj = availableMonthsCache.find(m => m.key === mKey);
+            const groupLabel = monthObj ? monthObj.label : mKey;
+            const isCompleted = monthObj ? monthObj.is_completed : false;
+
+            html += `
+                <tr class="table-light border-top border-bottom">
+                    <td colspan="7" class="py-2 px-3 bg-light">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div class="fw-bold text-dark">
+                                <i class="bi bi-calendar3 text-primary me-2"></i>${groupLabel}
+                                <span class="badge ${isCompleted ? 'bg-secondary-subtle text-secondary' : 'bg-primary-subtle text-primary'} ms-2">
+                                    ${isCompleted ? 'Completed Month' : 'Active Month'}
+                                </span>
+                            </div>
+                            <div class="small fw-semibold text-secondary">
+                                Month Total: <span class="text-dark fw-bold">${currency}${groupTotal.toFixed(2)}</span> &bull; ${groupList.length} expense${groupList.length === 1 ? '' : 's'}
+                            </div>
                         </div>
-                        <span>${exp.paid_by_details.display_name} ${isPayer ? '<span class="badge bg-light text-dark">You</span>' : ''}</span>
-                    </div>
-                </td>
-                <td class="text-muted small">${exp.date}</td>
-                <td class="text-end fw-bold text-dark">${currency}${parseFloat(exp.amount).toFixed(2)}</td>
-                <td class="text-end">
-                    ${mySplit ? `<span class="fw-semibold text-danger">${currency}${parseFloat(mySplit.amount).toFixed(2)}</span>` : '<span class="text-muted small">Not involved</span>'}
-                </td>
-                <td class="text-center">
-                    <button class="btn btn-sm btn-outline-secondary me-1" title="View Splits" onclick="viewExpenseSplitsModal(${JSON.stringify(exp).replace(/"/g, '&quot;')})">
-                        <i class="bi bi-eye"></i>
-                    </button>
-                    ${isPayer ? `
-                        <button class="btn btn-sm btn-outline-primary me-1" title="Edit Expense" onclick="openEditExpenseModal(${exp.id})">
-                            <i class="bi bi-pencil"></i>
-                        </button>
-                        <button class="btn btn-sm btn-outline-danger" title="Delete Expense" onclick="deleteExpense(${exp.id}, '${exp.title.replace(/'/g, "\\'")}')">
-                            <i class="bi bi-trash"></i>
-                        </button>
-                    ` : ''}
-                </td>
-            </tr>
-        `;
-    }).join('');
+                    </td>
+                </tr>
+            `;
+
+            groupList.forEach(exp => {
+                html += renderExpenseRow(exp, currency, currentUser);
+            });
+        });
+
+        tbody.innerHTML = html;
+    } else {
+        // Single selected month
+        tbody.innerHTML = expenses.map(exp => renderExpenseRow(exp, currency, currentUser)).join('');
+    }
 }
 
 /**
@@ -209,8 +363,20 @@ function populateExpenseModalUI() {
     }
 
     const dateInput = document.getElementById('expenseDate');
-    if (dateInput && !dateInput.value) {
-        dateInput.value = new Date().toISOString().split('T')[0];
+    if (dateInput) {
+        if (typeof flatpickr !== 'undefined') {
+            if (!dateInput._flatpickr) {
+                flatpickr(dateInput, {
+                    dateFormat: 'd/m/Y',
+                    allowInput: true,
+                    defaultDate: new Date()
+                });
+            } else if (!dateInput.value) {
+                dateInput._flatpickr.setDate(new Date());
+            }
+        } else if (!dateInput.value) {
+            dateInput.value = getTodayIndianDate();
+        }
     }
 
     renderParticipantSplitInputs();
@@ -446,7 +612,7 @@ async function handleExpenseSubmit(e) {
         category: catVal ? parseInt(catVal) : null,
         paid_by: parseInt(payerVal),
         split_type: splitType,
-        date: document.getElementById('expenseDate').value || new Date().toISOString().split('T')[0],
+        date: document.getElementById('expenseDate').value || getTodayIndianDate(),
         notes: document.getElementById('expenseNotes').value.trim(),
         splits_data: splitsData
     };
@@ -494,7 +660,7 @@ function viewExpenseSplitsModal(expense) {
     document.getElementById('viewExpenseTitle').textContent = expense.title;
     document.getElementById('viewExpenseTotal').textContent = `${expense.currency || '$'}${parseFloat(expense.amount).toFixed(2)}`;
     document.getElementById('viewExpensePaidBy').textContent = expense.paid_by_details.display_name;
-    document.getElementById('viewExpenseDate').textContent = expense.date;
+    document.getElementById('viewExpenseDate').textContent = formatIndianDate(expense.date);
 
     const list = document.getElementById('viewExpenseSplitsList');
     list.innerHTML = (expense.splits || []).map(s => `
@@ -570,7 +736,23 @@ async function openEditExpenseModal(expenseId) {
         document.getElementById('editExpenseId').value = exp.id;
         document.getElementById('editExpenseTitle').value = exp.title;
         document.getElementById('editExpenseAmount').value = parseFloat(exp.amount).toFixed(2);
-        document.getElementById('editExpenseDate').value = exp.date;
+        const formattedDate = formatIndianDate(exp.date);
+        const editDateInput = document.getElementById('editExpenseDate');
+        if (editDateInput) {
+            if (typeof flatpickr !== 'undefined') {
+                if (!editDateInput._flatpickr) {
+                    flatpickr(editDateInput, {
+                        dateFormat: 'd/m/Y',
+                        allowInput: true,
+                        defaultDate: formattedDate || new Date()
+                    });
+                } else {
+                    editDateInput._flatpickr.setDate(formattedDate || new Date());
+                }
+            } else {
+                editDateInput.value = formattedDate;
+            }
+        }
         document.getElementById('editExpenseNotes').value = exp.notes || '';
 
         const currSym = document.getElementById('editExpenseCurrencySymbol');
@@ -824,7 +1006,7 @@ async function handleEditExpenseSubmit(e) {
         category: catVal ? parseInt(catVal) : null,
         paid_by: parseInt(payerVal),
         split_type: splitType,
-        date: document.getElementById('editExpenseDate').value || new Date().toISOString().split('T')[0],
+        date: document.getElementById('editExpenseDate').value || getTodayIndianDate(),
         notes: document.getElementById('editExpenseNotes').value.trim(),
         splits_data: splitsData
     };

@@ -22,6 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const username = document.getElementById('loginUsername').value.trim();
             const password = document.getElementById('loginPassword').value;
 
+            try {
                 // Clear any previous session or cached room
                 Auth.clear();
 

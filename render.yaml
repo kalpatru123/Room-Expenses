@@ -1,0 +1,28 @@
+databases:
+  - name: roommate-db
+    databaseName: roommate_expense_db
+    user: roommate_user
+    plan: free
+
+services:
+  - type: web
+    name: roommate-expense-manager
+    runtime: python
+    plan: free
+    buildCommand: "./build.sh"
+    startCommand: "gunicorn roommate_manager.wsgi:application --log-file -"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "False"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: roommate-db
+          property: connectionString
+      - key: ALLOWED_HOSTS
+        value: ".onrender.com"
+      - key: CSRF_TRUSTED_ORIGINS
+        value: "https://*.onrender.com"

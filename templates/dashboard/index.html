@@ -7,15 +7,42 @@
     <!-- Pending Payment Verifications Banner -->
     <div id="pendingVerificationsAlertContainer"></div>
 
+    <!-- Dashboard Header & Month Filter Toolbar -->
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+        <div>
+            <h3 class="fw-bold mb-1" id="dashRoomHeading">Dashboard</h3>
+            <p class="text-muted small mb-0" id="dashRoomSubheading">Room expense overview, balances & monthly analysis</p>
+        </div>
+        <div class="d-flex align-items-center gap-2 bg-white px-3 py-2 rounded-3 border shadow-sm">
+            <label for="dashboardMonthFilter" class="form-label mb-0 small fw-bold text-dark text-nowrap">
+                <i class="bi bi-calendar3 text-primary me-1"></i>Expense Period:
+            </label>
+            <select class="form-select form-select-sm" id="dashboardMonthFilter" onchange="onDashboardMonthChange()">
+                <option value="">All Time Spending</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Active Filter Indicator Banner -->
+    <div id="dashboardPeriodNotice" class="alert alert-info py-2 px-3 small d-flex align-items-center justify-content-between mb-4 d-none shadow-sm">
+        <div>
+            <i class="bi bi-funnel-fill me-2 text-primary"></i>
+            <span id="dashboardPeriodNoticeText">Showing data for selected month</span>
+        </div>
+        <button class="btn btn-sm btn-link text-primary p-0 text-decoration-none fw-semibold" onclick="selectDashboardMonth('')">
+            Show All Time <i class="bi bi-x-circle ms-1"></i>
+        </button>
+    </div>
+
     <!-- Top Stat Cards Row -->
     <div class="row g-3 mb-4">
         <!-- 1. Total Room Spending -->
         <div class="col-sm-6 col-xl-3">
             <div class="stat-card">
                 <div>
-                    <div class="stat-title">Room Total Expenses</div>
+                    <div class="stat-title" id="statTotalRoomExpensesTitle">Room Total Expenses</div>
                     <div class="stat-value" id="statTotalRoomExpenses">₹0.00</div>
-                    <div class="stat-subtext">All time group spending</div>
+                    <div class="stat-subtext" id="statTotalRoomExpensesSubtext">All time group spending</div>
                 </div>
                 <div class="stat-icon-wrapper stat-icon-primary">
                     <i class="bi bi-wallet2"></i>
@@ -29,7 +56,7 @@
                 <div>
                     <div class="stat-title">You Paid Directly</div>
                     <div class="stat-value text-primary" id="statMyPaid">₹0.00</div>
-                    <div class="stat-subtext">Total out-of-pocket payments</div>
+                    <div class="stat-subtext" id="statMyPaidSubtext">Total out-of-pocket payments</div>
                 </div>
                 <div class="stat-icon-wrapper stat-icon-primary">
                     <i class="bi bi-credit-card"></i>
@@ -43,7 +70,7 @@
                 <div>
                     <div class="stat-title">Your Total Share</div>
                     <div class="stat-value text-secondary" id="statMyShare">₹0.00</div>
-                    <div class="stat-subtext">Your allocated cost</div>
+                    <div class="stat-subtext" id="statMyShareSubtext">Your allocated cost</div>
                 </div>
                 <div class="stat-icon-wrapper stat-icon-warning">
                     <i class="bi bi-pie-chart-fill"></i>
@@ -74,7 +101,7 @@
                 <div class="card-header-clean">
                     <div>
                         <h5 class="fw-bold mb-0"><i class="bi bi-arrow-left-right text-primary me-2"></i>Who Owes Whom</h5>
-                        <small class="text-muted">Optimized minimum-transaction settlement paths</small>
+                        <small class="text-muted" id="debtsSubtitle">Optimized minimum-transaction settlement paths</small>
                     </div>
                     <button class="btn btn-sm btn-outline-success" onclick="openSettleModal()">
                         <i class="bi bi-cash-stack me-1"></i> Settle Up
@@ -95,7 +122,7 @@
                 <div class="card-header-clean">
                     <div>
                         <h5 class="fw-bold mb-0"><i class="bi bi-pie-chart-fill text-primary me-2"></i>Category Breakdown</h5>
-                        <small class="text-muted">Distribution of expenses by category</small>
+                        <small class="text-muted" id="categoryChartSubtitle">Distribution of expenses by category</small>
                     </div>
                 </div>
                 <div class="card-body d-flex align-items-center justify-content-center" style="min-height: 280px; position: relative;">
@@ -105,30 +132,54 @@
         </div>
     </div>
 
-    <!-- Charts Row 2: Monthly Trends & Member Spending -->
-    <div class="row g-4 mb-4">
-        <!-- Monthly Spending Trend -->
-        <div class="col-lg-6">
-            <div class="card card-custom h-100">
-                <div class="card-header-clean">
-                    <h5 class="fw-bold mb-0"><i class="bi bi-bar-chart-line-fill text-primary me-2"></i>Monthly Spending Trend</h5>
+    <!-- Month-over-Month Expense Comparison & Difference Section -->
+    <div class="card card-custom mb-4 shadow-sm">
+        <div class="card-header-clean d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
+            <div>
+                <h5 class="fw-bold mb-0">
+                    <i class="bi bi-graph-up-arrow text-primary me-2"></i>Monthly Expense Comparison & Difference
+                </h5>
+                <small class="text-muted">Compare expenses across months & review ended monthly cycles after the last day</small>
+            </div>
+            <div id="monthlyChartCycleBadge">
+                <span class="badge bg-light text-secondary border">
+                    <i class="bi bi-calendar-check text-success me-1"></i>Cycles finalize after last day of month
+                </span>
+            </div>
+        </div>
+        <div class="card-body">
+            <!-- Chart Container -->
+            <div style="height: 310px; position: relative;" class="mb-4">
+                <canvas id="monthlyBarChart"></canvas>
+            </div>
+
+            <!-- Month-over-Month Difference Breakdown Cards -->
+            <div class="border-top pt-3">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="fw-bold text-dark mb-0">
+                        <i class="bi bi-arrow-left-right text-primary me-2"></i>Month-over-Month Expense Difference Breakdown
+                    </h6>
+                    <small class="text-muted">Differences evaluated between consecutive months</small>
                 </div>
-                <div class="card-body" style="height: 280px; position: relative;">
-                    <canvas id="monthlyBarChart"></canvas>
+                <div id="monthlyDifferenceCardsContainer" class="row g-3">
+                    <div class="col-12 text-center py-3 text-muted">
+                        <div class="spinner-border spinner-border-sm text-primary"></div> Loading monthly comparison...
+                    </div>
                 </div>
             </div>
         </div>
+    </div>
 
-        <!-- Member Spending Comparison -->
-        <div class="col-lg-6">
-            <div class="card card-custom h-100">
-                <div class="card-header-clean">
-                    <h5 class="fw-bold mb-0"><i class="bi bi-people-fill text-primary me-2"></i>Paid vs Consumed Share</h5>
-                </div>
-                <div class="card-body" style="height: 280px; position: relative;">
-                    <canvas id="memberSpendingChart"></canvas>
-                </div>
+    <!-- Member Paid vs Consumed Share -->
+    <div class="card card-custom mb-4">
+        <div class="card-header-clean">
+            <div>
+                <h5 class="fw-bold mb-0"><i class="bi bi-people-fill text-primary me-2"></i>Paid vs Consumed Share</h5>
+                <small class="text-muted">Compare each roommate's payments against their share of room expenses</small>
             </div>
+        </div>
+        <div class="card-body" style="height: 280px; position: relative;">
+            <canvas id="memberSpendingChart"></canvas>
         </div>
     </div>
 
@@ -186,7 +237,7 @@
                         <span class="fw-semibold text-dark" id="viewExpensePaidBy"></span>
                     </div>
                     <div class="d-flex justify-content-between">
-                        <span class="text-muted small">Date:</span>
+                        <span class="text-muted small">Date (DD/MM/YYYY):</span>
                         <span class="text-muted small" id="viewExpenseDate"></span>
                     </div>
                 </div>
@@ -205,5 +256,5 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script src="/static/js/dashboard.js?v=2.0"></script>
+<script src="/static/js/dashboard.js?v=2.6"></script>
 {% endblock %}

@@ -253,3 +253,61 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 });
+
+/**
+ * Format date value to Indian format: DD/MM/YYYY
+ * Handles Date objects, ISO strings (YYYY-MM-DD), and Indian strings (DD/MM/YYYY)
+ */
+function formatIndianDate(dateVal) {
+    if (!dateVal) return '';
+    if (typeof dateVal === 'string') {
+        dateVal = dateVal.trim();
+        // If already DD/MM/YYYY
+        if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateVal)) {
+            return dateVal;
+        }
+        // If YYYY-MM-DD
+        if (/^\d{4}-\d{2}-\d{2}/.test(dateVal)) {
+            const parts = dateVal.split('T')[0].split('-');
+            if (parts.length === 3) {
+                return `${parts[2]}/${parts[1]}/${parts[0]}`;
+            }
+        }
+    }
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return String(dateVal);
+    return d.toLocaleDateString('en-IN', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+    });
+}
+
+/**
+ * Format datetime value to Indian format: DD/MM/YYYY, hh:mm A
+ */
+function formatIndianDateTime(dateVal) {
+    if (!dateVal) return '';
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return String(dateVal);
+    return d.toLocaleString('en-IN', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+    });
+}
+
+/**
+ * Get today's date in Indian format (DD/MM/YYYY)
+ */
+function getTodayIndianDate() {
+    const today = new Date();
+    const dd = String(today.getDate()).padStart(2, '0');
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const yyyy = today.getFullYear();
+    return `${dd}/${mm}/${yyyy}`;
+}
+

@@ -5,6 +5,7 @@
 let categoryChartInstance = null;
 let monthlyChartInstance = null;
 let memberChartInstance = null;
+let currentDashboardMonth = '';
 
 document.addEventListener('DOMContentLoaded', async () => {
     // Only execute on dashboard page
@@ -81,6 +82,10 @@ async function initializeRoomSelector() {
             `;
         }
 
+        // Set headings
+        const dashHeading = document.getElementById('dashRoomHeading');
+        if (dashHeading) dashHeading.textContent = `${current.name} Dashboard`;
+
         return true;
     } catch (e) {
         console.error('Error loading rooms for selector', e);
@@ -92,49 +97,116 @@ async function selectActiveRoom(roomId) {
     try {
         const room = await apiRequest(`/api/rooms/${roomId}/`);
         Auth.setActiveRoom(room);
+        currentDashboardMonth = '';
         window.location.reload();
     } catch (e) {
         showToast(e.message, 'error');
     }
 }
 
-async function loadDashboardData() {
+function onDashboardMonthChange() {
+    const select = document.getElementById('dashboardMonthFilter');
+    if (select) {
+        loadDashboardData(select.value);
+    }
+}
+
+function selectDashboardMonth(monthKey) {
+    currentDashboardMonth = monthKey;
+    const select = document.getElementById('dashboardMonthFilter');
+    if (select) select.value = monthKey;
+    loadDashboardData(monthKey);
+}
+
+async function loadDashboardData(selectedMonth = currentDashboardMonth) {
+    currentDashboardMonth = selectedMonth || '';
     const activeRoom = Auth.getActiveRoom();
     if (!activeRoom) return;
 
     const roomId = activeRoom.id;
-    const currency = activeRoom.currency || '$';
+    const currency = activeRoom.currency || '₹';
     const currentUser = Auth.getUser();
+
+    const monthParam = currentDashboardMonth ? `?month=${encodeURIComponent(currentDashboardMonth)}` : '';
+    const expMonthParam = currentDashboardMonth ? `&month=${encodeURIComponent(currentDashboardMonth)}` : '';
 
     try {
         // Fetch balances, analytics, recent expenses, and recent settlements concurrently
         const [balancesData, analyticsData, expensesData, settlementsData] = await Promise.all([
-            apiRequest(`/api/rooms/${roomId}/balances/`),
-            apiRequest(`/api/rooms/${roomId}/analytics/`),
-            apiRequest(`/api/expenses/?room=${roomId}`),
+            apiRequest(`/api/rooms/${roomId}/balances/${monthParam}`),
+            apiRequest(`/api/rooms/${roomId}/analytics/${monthParam}`),
+            apiRequest(`/api/expenses/?room=${roomId}${expMonthParam}`),
             apiRequest(`/api/settlements/?room=${roomId}`)
         ]);
 
-        // 0. Render Pending Verifications Alert if any
+        // 0. Render Month Dropdown Selector
+        renderDashboardMonthSelector(balancesData.available_months || [], currentDashboardMonth);
+
+        // 1. Render Active Period Banner
+        renderPeriodNotice(balancesData, currentDashboardMonth, currency);
+
+        // 2. Render Pending Verifications Alert if any
         renderPendingVerificationsBanner(settlementsData, currency, currentUser);
 
-        // 1. Update Stat Cards
-        renderStatCards(balancesData, currency, currentUser);
+        // 3. Update Stat Cards (for selected period)
+        renderStatCards(balancesData, currency, currentUser, currentDashboardMonth);
 
-        // 2. Render Who Owes Whom (Simplified Debts)
-        renderSimplifiedDebts(balancesData.simplified_debts, currency, currentUser);
+        // 4. Render Who Owes Whom (Simplified Debts)
+        renderSimplifiedDebts(balancesData.simplified_debts, currency, currentUser, currentDashboardMonth);
 
-        // 3. Render Chart.js Analytics
+        // 5. Render Category Doughnut Chart
         renderCategoryChart(analyticsData.category_chart, currency);
+
+        // 6. Render Month-over-Month Expense Difference Chart & Cards
         renderMonthlyChart(analyticsData.monthly_chart, currency);
+        renderMonthlyDifferenceCards(analyticsData.monthly_comparison, currency);
+
+        // 7. Render Member Spending Comparison
         renderMemberChart(analyticsData.member_chart, currency);
 
-        // 4. Render Recent Expenses & Settlements
-        renderRecentActivity(expensesData, settlementsData, currency);
+        // 8. Render Recent Activity
+        renderRecentActivity(expensesData, settlementsData, currency, currentDashboardMonth);
 
     } catch (e) {
         console.error('Error loading dashboard data', e);
         showToast(e.message, 'error');
+    }
+}
+
+function renderDashboardMonthSelector(availableMonths, selectedMonth) {
+    const select = document.getElementById('dashboardMonthFilter');
+    if (!select) return;
+
+    select.innerHTML = `<option value="">All Time Spending</option>` +
+        (availableMonths || []).map(m => `
+            <option value="${m.key}" ${selectedMonth === m.key ? 'selected' : ''}>
+                ${m.label} ${m.is_current ? '(Current Month)' : (m.is_completed ? '(Completed Cycle)' : '')}
+            </option>
+        `).join('');
+}
+
+function renderPeriodNotice(balancesData, selectedMonth, currency) {
+    const noticeEl = document.getElementById('dashboardPeriodNotice');
+    const noticeText = document.getElementById('dashboardPeriodNoticeText');
+    const catSubtitle = document.getElementById('categoryChartSubtitle');
+    const debtsSubtitle = document.getElementById('debtsSubtitle');
+
+    if (!noticeEl) return;
+
+    if (selectedMonth) {
+        noticeEl.classList.remove('d-none');
+        const periodLabel = balancesData.selected_period_label || selectedMonth;
+        const total = balancesData.total_room_expenses || 0;
+        const count = balancesData.total_expenses_count || 0;
+
+        noticeText.innerHTML = `Viewing monthly cycle for <strong>${periodLabel}</strong> &bull; Total Spend: <strong>${currency}${total.toFixed(2)}</strong> (${count} expense${count === 1 ? '' : 's'})`;
+
+        if (catSubtitle) catSubtitle.textContent = `Expenses distribution in ${periodLabel}`;
+        if (debtsSubtitle) debtsSubtitle.textContent = `Debts calculated for ${periodLabel}`;
+    } else {
+        noticeEl.classList.add('d-none');
+        if (catSubtitle) catSubtitle.textContent = 'Distribution of expenses by category across all time';
+        if (debtsSubtitle) debtsSubtitle.textContent = 'Optimized minimum-transaction settlement paths';
     }
 }
 
@@ -172,7 +244,7 @@ function renderPendingVerificationsBanner(settlements, currency, currentUser) {
                                         ${s.payer_details.display_name} marked that they paid you <span class="text-success fs-6">${currency}${parseFloat(s.amount).toFixed(2)}</span>
                                     </div>
                                     <small class="text-muted">
-                                        ${s.notes ? `Note: "${s.notes}" &bull; ` : ''}Recorded on ${new Date(s.created_at).toLocaleDateString()}
+                                        ${s.notes ? `Note: "${s.notes}" &bull; ` : ''}Recorded on ${formatIndianDate(s.created_at)}
                                     </small>
                                 </div>
                             </div>
@@ -192,19 +264,36 @@ function renderPendingVerificationsBanner(settlements, currency, currentUser) {
     `;
 }
 
-function renderStatCards(balancesData, currency, currentUser) {
+function renderStatCards(balancesData, currency, currentUser, selectedMonth) {
     const totalRoomExpensesEl = document.getElementById('statTotalRoomExpenses');
+    const totalTitleEl = document.getElementById('statTotalRoomExpensesTitle');
+    const totalSubtextEl = document.getElementById('statTotalRoomExpensesSubtext');
+
     if (totalRoomExpensesEl) {
         totalRoomExpensesEl.textContent = `${currency}${balancesData.total_room_expenses.toFixed(2)}`;
+    }
+    if (totalTitleEl) {
+        totalTitleEl.textContent = selectedMonth ? 'Month Total Expenses' : 'Room Total Expenses';
+    }
+    if (totalSubtextEl) {
+        totalSubtextEl.textContent = selectedMonth ? `${balancesData.selected_period_label || selectedMonth} spending` : 'All time group spending';
     }
 
     const myBalance = balancesData.member_balances.find(b => currentUser && b.user.id === currentUser.id);
 
     const myPaidEl = document.getElementById('statMyPaid');
+    const myPaidSubtextEl = document.getElementById('statMyPaidSubtext');
     const myShareEl = document.getElementById('statMyShare');
-    const myNetCardEl = document.getElementById('statNetBalanceCard');
+    const myShareSubtextEl = document.getElementById('statMyShareSubtext');
     const myNetValueEl = document.getElementById('statNetBalanceValue');
     const myNetSubtextEl = document.getElementById('statNetBalanceSubtext');
+
+    if (myPaidSubtextEl) {
+        myPaidSubtextEl.textContent = selectedMonth ? `Paid in ${balancesData.selected_period_label}` : 'Total out-of-pocket payments';
+    }
+    if (myShareSubtextEl) {
+        myShareSubtextEl.textContent = selectedMonth ? `Your share in ${balancesData.selected_period_label}` : 'Your allocated cost';
+    }
 
     if (myBalance) {
         if (myPaidEl) myPaidEl.textContent = `${currency}${myBalance.total_paid.toFixed(2)}`;
@@ -215,15 +304,15 @@ function renderStatCards(balancesData, currency, currentUser) {
             if (net > 0) {
                 myNetValueEl.textContent = `+${currency}${net.toFixed(2)}`;
                 myNetValueEl.className = 'stat-value text-success';
-                myNetSubtextEl.textContent = 'Roommates owe you';
+                myNetSubtextEl.textContent = selectedMonth ? `Gets back for ${balancesData.selected_period_label}` : 'Roommates owe you';
             } else if (net < 0) {
                 myNetValueEl.textContent = `-${currency}${Math.abs(net).toFixed(2)}`;
                 myNetValueEl.className = 'stat-value text-danger';
-                myNetSubtextEl.textContent = 'You owe roommates';
+                myNetSubtextEl.textContent = selectedMonth ? `Owes for ${balancesData.selected_period_label}` : 'You owe roommates';
             } else {
                 myNetValueEl.textContent = `${currency}0.00`;
                 myNetValueEl.className = 'stat-value text-secondary';
-                myNetSubtextEl.textContent = 'All settled up!';
+                myNetSubtextEl.textContent = selectedMonth ? `Settled for ${balancesData.selected_period_label}` : 'All settled up!';
             }
         }
     } else {
@@ -233,7 +322,7 @@ function renderStatCards(balancesData, currency, currentUser) {
     }
 }
 
-function renderSimplifiedDebts(debts, currency, currentUser) {
+function renderSimplifiedDebts(debts, currency, currentUser, selectedMonth) {
     const container = document.getElementById('simplifiedDebtsContainer');
     if (!container) return;
 
@@ -242,7 +331,7 @@ function renderSimplifiedDebts(debts, currency, currentUser) {
             <div class="text-center py-4 text-muted">
                 <i class="bi bi-check-circle-fill text-success fs-1 mb-2 d-block"></i>
                 <h6 class="fw-semibold text-dark">All Settled Up!</h6>
-                <p class="small mb-0">No outstanding debts between roommates.</p>
+                <p class="small mb-0">${selectedMonth ? 'No outstanding debts for this monthly cycle.' : 'No outstanding debts between roommates.'}</p>
             </div>
         `;
         return;
@@ -253,30 +342,44 @@ function renderSimplifiedDebts(debts, currency, currentUser) {
         const isToMe = currentUser && d.to_user.id === currentUser.id;
 
         return `
-            <div class="debt-card ${isFromMe ? 'border-danger-subtle bg-danger-subtle bg-opacity-10' : (isToMe ? 'border-success-subtle bg-success-subtle bg-opacity-10' : '')}">
-                <div class="d-flex align-items-center gap-2 flex-grow-1">
-                    <div class="user-avatar-sm" style="background-color: ${d.from_user.avatar_color || '#4F46E5'}">
-                        ${d.from_user.initials}
+            <div class="debt-card d-flex align-items-center justify-content-between p-3 mb-2 rounded-3 border bg-white shadow-sm">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="user-avatar-sm" style="background-color: ${d.from_user.avatar_color || '#EF4444'}">
+                            ${d.from_user.initials}
+                        </div>
+                        <span class="fw-semibold text-dark">
+                            ${d.from_user.display_name} ${isFromMe ? '<span class="badge bg-danger-subtle text-danger ms-1">You</span>' : ''}
+                        </span>
                     </div>
-                    <div class="fw-medium text-dark">${d.from_user.display_name} ${isFromMe ? '<span class="badge bg-danger">You</span>' : ''}</div>
-                    
-                    <i class="bi bi-arrow-right debt-arrow"></i>
-                    
-                    <div class="user-avatar-sm" style="background-color: ${d.to_user.avatar_color || '#10B981'}">
-                        ${d.to_user.initials}
+
+                    <div class="text-muted d-flex align-items-center px-1">
+                        <i class="bi bi-arrow-right fs-5 text-secondary"></i>
                     </div>
-                    <div class="fw-medium text-dark">${d.to_user.display_name} ${isToMe ? '<span class="badge bg-success">You</span>' : ''}</div>
+
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="user-avatar-sm" style="background-color: ${d.to_user.avatar_color || '#10B981'}">
+                            ${d.to_user.initials}
+                        </div>
+                        <span class="fw-semibold text-dark">
+                            ${d.to_user.display_name} ${isToMe ? '<span class="badge bg-success-subtle text-success ms-1">You</span>' : ''}
+                        </span>
+                    </div>
                 </div>
 
                 <div class="d-flex align-items-center gap-3">
-                    <span class="fs-6 fw-bold text-dark">${currency}${d.amount.toFixed(2)}</span>
+                    <div class="text-end">
+                        <div class="fw-bold fs-6 text-dark">${currency}${d.amount.toFixed(2)}</div>
+                        <small class="text-muted">${isFromMe ? 'You owe' : (isToMe ? 'Owes you' : 'Owed')}</small>
+                    </div>
+
                     ${isFromMe ? `
-                        <button class="btn btn-sm btn-success px-3 fw-semibold shadow-sm" onclick="openSettleModal(${d.from_user.id}, ${d.to_user.id}, ${d.amount}, '${d.from_user.display_name}', '${d.to_user.display_name}')">
-                            <i class="bi bi-wallet2 me-1"></i> Pay Now
+                        <button class="btn btn-sm btn-primary-custom" onclick="prefillSettlementModal(${d.to_user.id}, ${d.amount})">
+                            <i class="bi bi-cash me-1"></i> Pay
                         </button>
                     ` : (isToMe ? `
-                        <button class="btn btn-sm btn-outline-primary px-3 fw-semibold" onclick="openSettleModal(${d.from_user.id}, ${d.to_user.id}, ${d.amount}, '${d.from_user.display_name}', '${d.to_user.display_name}')">
-                            <i class="bi bi-check2 me-1"></i> Settle Up
+                        <button class="btn btn-sm btn-outline-success" onclick="openSettleModal()">
+                            <i class="bi bi-check-circle me-1"></i> Record
                         </button>
                     ` : `
                         <span class="badge bg-light text-muted border px-2 py-1">
@@ -295,17 +398,31 @@ function renderCategoryChart(categoryData, currency = '₹') {
 
     if (categoryChartInstance) {
         categoryChartInstance.destroy();
+        categoryChartInstance = null;
     }
 
+    let emptyNotice = document.getElementById('categoryChartEmptyNotice');
     if (!categoryData || !categoryData.data || categoryData.data.length === 0) {
-        canvas.parentElement.innerHTML = `
-            <div class="text-center py-5 text-muted">
+        canvas.style.display = 'none';
+        if (!emptyNotice) {
+            emptyNotice = document.createElement('div');
+            emptyNotice.id = 'categoryChartEmptyNotice';
+            emptyNotice.className = 'text-center py-5 text-muted w-100';
+            emptyNotice.innerHTML = `
                 <i class="bi bi-pie-chart display-4 mb-2 d-block text-secondary"></i>
-                <p>No expense categories to display yet.</p>
-            </div>
-        `;
+                <p class="mb-0">No expense categories recorded for this period.</p>
+            `;
+            canvas.parentElement.appendChild(emptyNotice);
+        } else {
+            emptyNotice.style.display = 'block';
+        }
         return;
     }
+
+    if (emptyNotice) {
+        emptyNotice.style.display = 'none';
+    }
+    canvas.style.display = 'block';
 
     const ctx = canvas.getContext('2d');
     categoryChartInstance = new Chart(ctx, {
@@ -328,7 +445,7 @@ function renderCategoryChart(categoryData, currency = '₹') {
                     position: 'bottom',
                     labels: {
                         boxWidth: 12,
-                        padding: 15,
+                        padding: 12,
                         font: { family: 'Inter', size: 12 }
                     }
                 },
@@ -343,50 +460,122 @@ function renderCategoryChart(categoryData, currency = '₹') {
                     }
                 }
             },
-            cutout: '70%'
+            cutout: '68%'
         }
     });
 }
 
-function renderMonthlyChart(monthlyData, currency) {
+/**
+ * Render Month-over-Month Expense Comparison & Difference Chart
+ */
+function renderMonthlyChart(monthlyData, currency = '₹') {
     const canvas = document.getElementById('monthlyBarChart');
     if (!canvas) return;
 
     if (monthlyChartInstance) {
         monthlyChartInstance.destroy();
+        monthlyChartInstance = null;
     }
 
+    let emptyNotice = document.getElementById('monthlyChartEmptyNotice');
     if (!monthlyData || !monthlyData.data || monthlyData.data.length === 0) {
-        canvas.parentElement.innerHTML = `
-            <div class="text-center py-5 text-muted">
+        canvas.style.display = 'none';
+        if (!emptyNotice) {
+            emptyNotice = document.createElement('div');
+            emptyNotice.id = 'monthlyChartEmptyNotice';
+            emptyNotice.className = 'text-center py-5 text-muted w-100';
+            emptyNotice.innerHTML = `
                 <i class="bi bi-bar-chart display-4 mb-2 d-block text-secondary"></i>
-                <p>No monthly spending trend yet.</p>
-            </div>
-        `;
+                <p class="mb-0">No monthly spending trend yet. Expenses will be compared as months elapse.</p>
+            `;
+            canvas.parentElement.appendChild(emptyNotice);
+        } else {
+            emptyNotice.style.display = 'block';
+        }
         return;
     }
 
+    if (emptyNotice) {
+        emptyNotice.style.display = 'none';
+    }
+    canvas.style.display = 'block';
+
     const ctx = canvas.getContext('2d');
+    const backgroundColors = (monthlyData.is_completed || []).map(isComp => isComp ? '#4F46E5' : '#38BDF8');
+    const borderColors = (monthlyData.is_completed || []).map(isComp => isComp ? '#4338CA' : '#0284C7');
+
     monthlyChartInstance = new Chart(ctx, {
         type: 'bar',
         data: {
             labels: monthlyData.labels,
-            datasets: [{
-                label: 'Monthly Spending',
-                data: monthlyData.data,
-                backgroundColor: '#3b82f6',
-                borderRadius: 6,
-                maxBarThickness: 45
-            }]
+            datasets: [
+                {
+                    type: 'bar',
+                    label: 'Total Monthly Spend',
+                    data: monthlyData.data,
+                    backgroundColor: backgroundColors,
+                    borderColor: borderColors,
+                    borderWidth: 1.5,
+                    borderRadius: 6,
+                    maxBarThickness: 46,
+                    order: 2
+                },
+                {
+                    type: 'line',
+                    label: 'Difference vs Previous Month',
+                    data: monthlyData.diff_data || [],
+                    borderColor: '#F59E0B',
+                    backgroundColor: '#F59E0B',
+                    borderWidth: 2.5,
+                    pointBackgroundColor: '#FFFFFF',
+                    pointBorderColor: '#F59E0B',
+                    pointBorderWidth: 2,
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
+                    tension: 0.25,
+                    fill: false,
+                    order: 1
+                }
+            ]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
             plugins: {
-                legend: { display: false },
+                legend: {
+                    display: true,
+                    position: 'top',
+                    labels: {
+                        boxWidth: 14,
+                        padding: 12,
+                        font: { family: 'Inter', size: 12 }
+                    }
+                },
                 tooltip: {
                     callbacks: {
-                        label: (ctx) => ` Spent: ${currency}${ctx.raw.toFixed(2)}`
+                        label: function(ctx) {
+                            const val = ctx.raw || 0;
+                            const idx = ctx.dataIndex;
+                            const compItem = monthlyData.comparison ? monthlyData.comparison[idx] : null;
+
+                            if (ctx.dataset.type === 'line') {
+                                if (!compItem || compItem.previous_month_spent === null) {
+                                    return ` MoM Change: Baseline (First Month)`;
+                                }
+                                const sign = val > 0 ? '+' : '';
+                                return ` MoM Change: ${sign}${currency}${val.toFixed(2)} (${sign}${compItem.diff_percentage}%)`;
+                            } else {
+                                const status = compItem ? (compItem.is_completed ? `Completed (Ended ${compItem.last_day_formatted})` : `Active Month`) : '';
+                                return [
+                                    ` Total Spend: ${currency}${val.toFixed(2)}`,
+                                    status ? ` Cycle: ${status}` : ''
+                                ].filter(Boolean);
+                            }
+                        }
                     }
                 }
             },
@@ -406,7 +595,104 @@ function renderMonthlyChart(monthlyData, currency) {
     });
 }
 
-function renderMemberChart(memberData, currency) {
+/**
+ * Render Month-over-Month Difference Breakdown Cards
+ */
+function renderMonthlyDifferenceCards(comparisonList, currency) {
+    const container = document.getElementById('monthlyDifferenceCardsContainer');
+    if (!container) return;
+
+    if (!comparisonList || comparisonList.length === 0) {
+        container.innerHTML = `
+            <div class="col-12 text-center py-3 text-muted">
+                <i class="bi bi-calendar-x display-6 mb-2 d-block text-secondary"></i>
+                <p class="small mb-0">No monthly expense cycles recorded yet.</p>
+            </div>
+        `;
+        return;
+    }
+
+    // Display in reverse chronological order (newest month first)
+    const reversed = [...comparisonList].reverse();
+
+    container.innerHTML = reversed.map(m => {
+        let diffBadgeHtml = '';
+        if (m.previous_month_spent !== null) {
+            if (m.diff_direction === 'increased') {
+                diffBadgeHtml = `
+                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1">
+                        <i class="bi bi-arrow-up-right me-1"></i>+${currency}${Math.abs(m.diff_amount).toFixed(2)} (+${m.diff_percentage}%)
+                    </span>
+                `;
+            } else if (m.diff_direction === 'decreased') {
+                diffBadgeHtml = `
+                    <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
+                        <i class="bi bi-arrow-down-right me-1"></i>-${currency}${Math.abs(m.diff_amount).toFixed(2)} (-${Math.abs(m.diff_percentage)}%)
+                    </span>
+                `;
+            } else {
+                diffBadgeHtml = `
+                    <span class="badge bg-secondary-subtle text-secondary border px-2 py-1">
+                        <i class="bi bi-dash me-1"></i>No Change
+                    </span>
+                `;
+            }
+        } else {
+            diffBadgeHtml = `
+                <span class="badge bg-light text-muted border px-2 py-1">Baseline Month</span>
+            `;
+        }
+
+        const isCurrentSelected = currentDashboardMonth === m.key;
+
+        return `
+            <div class="col-md-6 col-xl-4">
+                <div class="card h-100 ${isCurrentSelected ? 'border-primary shadow-sm bg-primary bg-opacity-10' : 'border shadow-none bg-white'} rounded-3">
+                    <div class="card-body p-3">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <div>
+                                <h6 class="fw-bold mb-0 text-dark">${m.label}</h6>
+                                <small class="text-muted small">
+                                    ${m.is_completed ? `<i class="bi bi-calendar-check text-success me-1"></i>Cycle ended ${m.last_day_formatted}` : `<i class="bi bi-clock-history text-primary me-1"></i>Cycle ends ${m.last_day_formatted}`}
+                                </small>
+                            </div>
+                            <span class="badge ${m.is_completed ? 'bg-secondary-subtle text-secondary' : 'bg-primary-subtle text-primary'} border">
+                                ${m.is_completed ? 'Completed Month' : 'Active Month'}
+                            </span>
+                        </div>
+
+                        <div class="d-flex align-items-baseline justify-content-between my-2">
+                            <div>
+                                <span class="fs-4 fw-bold text-dark">${currency}${m.total_spent.toFixed(2)}</span>
+                                <small class="text-muted ms-1">(${m.expense_count} expense${m.expense_count === 1 ? '' : 's'})</small>
+                            </div>
+                            ${diffBadgeHtml}
+                        </div>
+
+                        <div class="pt-2 border-top small text-muted d-flex justify-content-between">
+                            <span>Top Category:</span>
+                            <span class="fw-semibold text-dark text-truncate" style="max-width: 140px;" title="${m.top_category}">${m.top_category} (${currency}${m.top_category_amount.toFixed(2)})</span>
+                        </div>
+
+                        <div class="pt-1 small text-muted d-flex justify-content-between">
+                            <span>Daily Average:</span>
+                            <span class="fw-semibold text-dark">${currency}${m.daily_average.toFixed(2)} / day</span>
+                        </div>
+
+                        <div class="mt-3">
+                            <button class="btn btn-sm ${isCurrentSelected ? 'btn-primary' : 'btn-outline-primary'} w-100 py-1" onclick="selectDashboardMonth('${isCurrentSelected ? '' : m.key}')">
+                                <i class="bi ${isCurrentSelected ? 'bi-check-lg' : 'bi-funnel'} me-1"></i>
+                                ${isCurrentSelected ? 'Showing This Month' : `Filter ${m.short_label}`}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function renderMemberChart(memberData, currency = '₹') {
     const canvas = document.getElementById('memberSpendingChart');
     if (!canvas) return;
 
@@ -425,13 +711,13 @@ function renderMemberChart(memberData, currency) {
                 {
                     label: 'Paid for Group',
                     data: memberData.paid_data,
-                    backgroundColor: '#10b981',
+                    backgroundColor: '#10B981',
                     borderRadius: 4
                 },
                 {
                     label: 'Consumed Share',
                     data: memberData.share_data,
-                    backgroundColor: '#f59e0b',
+                    backgroundColor: '#F59E0B',
                     borderRadius: 4
                 }
             ]
@@ -462,7 +748,7 @@ function renderMemberChart(memberData, currency) {
     });
 }
 
-function renderRecentActivity(expenses, settlements, currency) {
+function renderRecentActivity(expenses, settlements, currency, selectedMonth) {
     const container = document.getElementById('recentExpensesTableBody');
     if (!container) return;
 
@@ -473,7 +759,7 @@ function renderRecentActivity(expenses, settlements, currency) {
         container.innerHTML = `
             <tr>
                 <td colspan="6" class="text-center py-4 text-muted">
-                    No expenses recorded in this room yet. Click <strong>+ Add Expense</strong> to get started!
+                    ${selectedMonth ? 'No expenses recorded in this specific month.' : 'No expenses recorded in this room yet. Click <strong>+ Add Expense</strong> to get started!'}
                 </td>
             </tr>
         `;
@@ -486,7 +772,7 @@ function renderRecentActivity(expenses, settlements, currency) {
             <tr>
                 <td>
                     <div class="fw-semibold text-dark">${exp.title}</div>
-                    <small class="text-muted">${exp.date}</small>
+                    <small class="text-muted">${formatIndianDate(exp.date)}</small>
                 </td>
                 <td>
                     ${exp.category_details ? `

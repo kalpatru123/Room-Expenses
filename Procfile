@@ -1,1 +1,1 @@
-web: gunicorn roommate_manager.wsgi --log-file -
+web: gunicorn roommate_manager.wsgi:application --log-file -

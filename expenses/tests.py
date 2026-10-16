@@ -50,6 +50,31 @@ class ExpensesAPITests(TestCase):
         total_split_amount = sum(s.amount for s in splits)
         self.assertEqual(total_split_amount, Decimal('100.00'))
 
+    def test_create_expense_with_indian_date_format(self):
+        # Test Indian date format DD/MM/YYYY
+        payload = {
+            'room': self.room.id,
+            'title': 'WiFi Recharge',
+            'amount': '699.00',
+            'category': self.category.id,
+            'paid_by': self.user1.id,
+            'split_type': 'EQUAL',
+            'date': '16/10/2026',
+            'notes': 'Jio Fiber bill',
+            'splits_data': [
+                {'user_id': self.user1.id},
+                {'user_id': self.user2.id}
+            ]
+        }
+        res = self.client.post('/api/expenses/', payload, format='json')
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+
+        exp_id = res.data['id']
+        get_res = self.client.get(f'/api/expenses/{exp_id}/')
+        self.assertEqual(get_res.status_code, status.HTTP_200_OK)
+        self.assertEqual(get_res.data['date'], '16/10/2026')
+
+
     def test_custom_split_validation_failure(self):
         # Expense is $100 but custom sum is $90 -> Should fail validation
         payload = {

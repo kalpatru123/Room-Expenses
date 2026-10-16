@@ -18,24 +18,32 @@
 <!-- Filters Card -->
 <div class="card card-custom p-3 mb-4 shadow-sm">
     <div class="row g-2 align-items-center">
-        <div class="col-md-4">
+        <div class="col-md-3">
             <div class="input-group input-group-sm">
                 <span class="input-group-text"><i class="bi bi-search"></i></span>
                 <input type="text" class="form-control" id="searchExpenseInput" placeholder="Search by title or notes..." oninput="filterExpenses()">
             </div>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-3">
+            <select class="form-select form-select-sm" id="filterMonth" onchange="filterExpenses()">
+                <option value="">All Months</option>
+            </select>
+        </div>
+        <div class="col-md-3">
             <select class="form-select form-select-sm" id="filterCategory" onchange="filterExpenses()">
                 <option value="">All Categories</option>
             </select>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-3">
             <select class="form-select form-select-sm" id="filterPaidBy" onchange="filterExpenses()">
                 <option value="">All Payers</option>
             </select>
         </div>
     </div>
 </div>
+
+<!-- Active Month Banner -->
+<div id="monthlySummaryBanner" class="mb-3 d-none"></div>
 
 <!-- Expenses Table Card -->
 <div class="card card-custom shadow-sm mb-4">
@@ -46,7 +54,7 @@
                     <th>Expense Title</th>
                     <th>Category</th>
                     <th>Paid By</th>
-                    <th>Date</th>
+                    <th>Date <small class="text-muted fw-normal">(DD/MM/YYYY)</small></th>
                     <th class="text-end">Total Amount</th>
                     <th class="text-end">Your Share</th>
                     <th class="text-center">Actions</th>
@@ -82,7 +90,7 @@
                         <span class="fw-semibold text-dark" id="viewExpensePaidBy"></span>
                     </div>
                     <div class="d-flex justify-content-between">
-                        <span class="text-muted small">Date:</span>
+                        <span class="text-muted small">Date (DD/MM/YYYY):</span>
                         <span class="text-muted small" id="viewExpenseDate"></span>
                     </div>
                 </div>

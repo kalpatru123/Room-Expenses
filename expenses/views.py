@@ -56,6 +56,21 @@ class ExpenseListCreateAPIView(generics.ListCreateAPIView):
         if paid_by_id:
             queryset = queryset.filter(paid_by_id=paid_by_id)
 
+        # Month filter (e.g. ?month=2026-09 or ?month=9&year=2026)
+        month_param = self.request.query_params.get('month')
+        year_param = self.request.query_params.get('year')
+        if month_param and '-' in month_param:
+            try:
+                parts = month_param.split('-')
+                queryset = queryset.filter(date__year=int(parts[0]), date__month=int(parts[1]))
+            except (ValueError, IndexError):
+                pass
+        elif month_param and year_param:
+            try:
+                queryset = queryset.filter(date__year=int(year_param), date__month=int(month_param))
+            except ValueError:
+                pass
+
         search = self.request.query_params.get('search')
         if search:
             queryset = queryset.filter(

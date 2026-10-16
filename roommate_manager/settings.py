@@ -1,14 +1,24 @@
 import os
+import sys
 from pathlib import Path
 from datetime import timedelta
 import dj_database_url
 from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
-BASE_DIR = Path(__file__).resolve().parent.parent
+if getattr(sys, 'frozen', False):
+    # Running inside a PyInstaller bundle
+    BASE_DIR = Path(sys._MEIPASS)
+    DATA_DIR = Path(sys.executable).parent
+else:
+    BASE_DIR = Path(__file__).resolve().parent.parent
+    DATA_DIR = BASE_DIR
 
 # Load environment variables from .env file if present
-load_dotenv(BASE_DIR / '.env')
+if (DATA_DIR / '.env').exists():
+    load_dotenv(DATA_DIR / '.env')
+elif (BASE_DIR / '.env').exists():
+    load_dotenv(BASE_DIR / '.env')
 
 # Quick-start development settings - unsuitable for production
 SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-roommate-expense-manager-super-secret-key-2026')
@@ -21,6 +31,11 @@ if allowed_hosts_env == '*':
     ALLOWED_HOSTS = ['*']
 else:
     ALLOWED_HOSTS = [h.strip() for h in allowed_hosts_env.split(',') if h.strip()]
+
+# Render external hostname support
+render_external_hostname = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
+if render_external_hostname and render_external_hostname not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append(render_external_hostname)
 
 # Application definition
 INSTALLED_APPS = [
@@ -69,6 +84,11 @@ if csrf_env:
         cleaned = origin.strip()
         if cleaned and cleaned not in CSRF_TRUSTED_ORIGINS:
             CSRF_TRUSTED_ORIGINS.append(cleaned)
+
+if render_external_hostname:
+    render_origin = f"https://{render_external_hostname}"
+    if render_origin not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS.append(render_origin)
 
 ROOT_URLCONF = 'roommate_manager.urls'
 
@@ -119,12 +139,16 @@ else:
         DATABASES = {
             'default': {
                 'ENGINE': 'django.db.backends.sqlite3',
-                'NAME': BASE_DIR / 'db.sqlite3',
+                'NAME': DATA_DIR / 'db.sqlite3',
             }
         }
 
 # Custom User Model
 AUTH_USER_MODEL = 'accounts.CustomUser'
+
+AUTHENTICATION_BACKENDS = [
+    'accounts.backends.CaseInsensitiveModelBackend',
+]
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
@@ -152,8 +176,17 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.IsAuthenticated',
     ),
     'DEFAULT_PAGINATION_CLASS': None,
-    'DATETIME_FORMAT': '%Y-%m-%d %H:%M:%S',
-    'DATE_FORMAT': '%Y-%m-%d',
+    'DATETIME_FORMAT': '%d/%m/%Y %I:%M %p',
+    'DATE_FORMAT': '%d/%m/%Y',
+    'DATE_INPUT_FORMATS': ['%d/%m/%Y', '%d-%m-%Y', '%Y-%m-%d', 'iso-8601'],
+    'DATETIME_INPUT_FORMATS': [
+        '%d/%m/%Y %H:%M:%S',
+        '%d/%m/%Y %I:%M %p',
+        '%d-%m-%Y %H:%M:%S',
+        '%Y-%m-%d %H:%M:%S',
+        '%Y-%m-%d %H:%M',
+        'iso-8601'
+    ],
 }
 
 # Simple JWT Configuration
@@ -179,10 +212,28 @@ if cors_origins_env:
 CORS_ALLOW_CREDENTIALS = True
 
 # Internationalization
-LANGUAGE_CODE = os.environ.get('LANGUAGE_CODE', 'en-us')
+LANGUAGE_CODE = os.environ.get('LANGUAGE_CODE', 'en-in')
 TIME_ZONE = os.environ.get('TIME_ZONE', 'Asia/Kolkata')
 USE_I18N = True
 USE_TZ = True
+
+# Standard Indian Date & Time Formats (DD/MM/YYYY)
+DATE_FORMAT = 'd/m/Y'
+DATETIME_FORMAT = 'd/m/Y h:i A'
+SHORT_DATE_FORMAT = 'd/m/Y'
+SHORT_DATETIME_FORMAT = 'd/m/Y h:i A'
+DATE_INPUT_FORMATS = [
+    '%d/%m/%Y',
+    '%d-%m-%Y',
+    '%Y-%m-%d',
+]
+DATETIME_INPUT_FORMATS = [
+    '%d/%m/%Y %H:%M:%S',
+    '%d/%m/%Y %I:%M %p',
+    '%d-%m-%Y %H:%M:%S',
+    '%Y-%m-%d %H:%M:%S',
+    '%Y-%m-%d %H:%M',
+]
 
 
 # Static files (CSS, JavaScript, Images)
@@ -192,7 +243,17 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 # Media files
 MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
+MEDIA_ROOT = DATA_DIR / 'media'
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# WhiteNoise Static Files Storage
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
+    },
+}

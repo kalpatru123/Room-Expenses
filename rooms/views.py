@@ -120,7 +120,23 @@ class RoomBalancesAPIView(APIView):
 
     def get(self, request, pk):
         room = get_object_or_404(Room, pk=pk, members__user=request.user, members__is_active=True)
-        data = calculate_room_balances(room)
+        month_param = request.query_params.get('month')
+        year_param = request.query_params.get('year')
+        year, month = None, None
+        if month_param and '-' in month_param:
+            try:
+                parts = month_param.split('-')
+                year = int(parts[0])
+                month = int(parts[1])
+            except (ValueError, IndexError):
+                pass
+        elif month_param and year_param:
+            try:
+                year = int(year_param)
+                month = int(month_param)
+            except ValueError:
+                pass
+        data = calculate_room_balances(room, year=year, month=month)
         return Response(data)
 
 
@@ -129,7 +145,23 @@ class RoomAnalyticsAPIView(APIView):
 
     def get(self, request, pk):
         room = get_object_or_404(Room, pk=pk, members__user=request.user, members__is_active=True)
-        data = get_room_analytics(room)
+        month_param = request.query_params.get('month')
+        year_param = request.query_params.get('year')
+        year, month = None, None
+        if month_param and '-' in month_param:
+            try:
+                parts = month_param.split('-')
+                year = int(parts[0])
+                month = int(parts[1])
+            except (ValueError, IndexError):
+                pass
+        elif month_param and year_param:
+            try:
+                year = int(year_param)
+                month = int(month_param)
+            except ValueError:
+                pass
+        data = get_room_analytics(room, year=year, month=month)
         return Response(data)
 
 

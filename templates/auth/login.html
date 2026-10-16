@@ -16,12 +16,12 @@
 
             <div id="loginAlert" class="alert alert-danger d-none py-2 small" role="alert"></div>
 
-            <form id="loginForm">
+            <form id="loginForm" method="post" onsubmit="return false;">
                 <div class="mb-3">
                     <label class="form-label fw-semibold">Username</label>
                     <div class="input-group">
                         <span class="input-group-text"><i class="bi bi-person"></i></span>
-                        <input type="text" class="form-control" id="loginUsername" placeholder="e.g. alice" required autofocus>
+                        <input type="text" class="form-control" id="loginUsername" name="username" autocomplete="username" placeholder="e.g. Bikash or admin" required autofocus>
                     </div>
                 </div>
 
@@ -29,7 +29,7 @@
                     <label class="form-label fw-semibold">Password</label>
                     <div class="input-group">
                         <span class="input-group-text"><i class="bi bi-lock"></i></span>
-                        <input type="password" class="form-control" id="loginPassword" placeholder="••••••••" required>
+                        <input type="password" class="form-control" id="loginPassword" name="password" autocomplete="current-password" placeholder="••••••••" required>
                     </div>
                 </div>
 
@@ -43,9 +43,9 @@
             </div>
 
             <div class="mt-3 p-2 bg-light rounded text-center small text-muted">
-                <strong>Demo Logins (Room: Flat 402, Bangalore):</strong><br>
-                <code>aarav</code> | <code>priya</code> | <code>rohan</code> | <code>alice</code><br>
-                Password for all: <code>password123</code>
+                <strong>Available Accounts:</strong><br>
+                <code>Bikash</code> &bull; Password: <code>Password@123</code><br>
+                <code>admin</code> &bull; Password: <code>admin123</code>
             </div>
         </div>
     </div>
