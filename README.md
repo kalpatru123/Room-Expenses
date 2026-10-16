@@ -1,5 +1,7 @@
 # Roommate Expense Manager 🏠💰
 
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/kalpatru123/Room-Expenses)
+
 A modern, full-stack **Roommate Expense Manager** web application built with **Python, Django 5/6, Django REST Framework, PostgreSQL / SQLite, SimpleJWT, Bootstrap 5, JavaScript (ES6+), and Chart.js**.
 
 ---
